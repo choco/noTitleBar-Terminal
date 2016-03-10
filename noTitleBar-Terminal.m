@@ -18,6 +18,10 @@
               withMethod:@selector(noTitleBar_initWithContentRect:styleMask:backing:defer:)
                    error:NULL];
     [NSClassFromString(@"TTWindow")
+        jr_swizzleMethod:@selector(validateMenuItem:)
+              withMethod:@selector(noTitleBar_validateMenuItem:)
+                   error:NULL];
+    [NSClassFromString(@"TTWindow")
         jr_swizzleMethod:@selector(canBecomeKeyWindow)
               withMethod:@selector(noTitleBar_canBecomeKeyWindow)
                    error:NULL];
@@ -28,6 +32,10 @@
     [NSClassFromString(@"TTWindow")
         jr_swizzleMethod:@selector(performClose:)
               withMethod:@selector(noTitleBar_performClose:)
+                   error:NULL];
+    [NSClassFromString(@"TTWindow")
+        jr_swizzleMethod:@selector(performMiniaturize:)
+              withMethod:@selector(noTitleBar_performMiniaturize:)
                    error:NULL];
     [self updateWindows];
 }
@@ -61,11 +69,11 @@
 @implementation NSWindow(TTWindow)
 
 /*
- * The 3 following methods must be added because Cocoa doesn't give focus and
- * main window status if the window doesn't have a title bar.
- * The first two are well documented around the web but the third one is
- * necessary to keep Command-W shortucut to close a window since it's disabled
- * without a titlebar
+ * The 5 following methods must be added because Cocoa doesn't give focus and
+ * main window status if the window doesn't have a title bar and disables some
+ * menu items.
+ * The first two are well documented around the web but the other ones are
+ * necessary to restore some menu items that get deactivated.
  */
 - (BOOL)noTitleBar_canBecomeKeyWindow {
     return YES;
@@ -73,6 +81,12 @@
 
 - (BOOL)noTitleBar_canBecomeMainWindow {
     return YES;
+}
+
+- (BOOL)noTitleBar_validateMenuItem:(NSMenuItem *)menuItem {
+    return ([menuItem action] == @selector(performClose:) ||
+            [menuItem action] == @selector(performMiniaturize:)) ? YES :
+        [self noTitleBar_validateMenuItem:menuItem];
 }
 
 - (void)noTitleBar_performClose:(id)sender {
@@ -84,6 +98,10 @@
     if (shouldClose) {
         [self close];
     }
+}
+
+- (void)noTitleBar_performMiniaturize:(id)sender {
+    [self miniaturize:self];
 }
 
 - (id)noTitleBar_initWithContentRect:(CGRect)rect
