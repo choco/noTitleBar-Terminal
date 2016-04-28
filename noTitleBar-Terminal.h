@@ -10,4 +10,10 @@
 
 @interface noTitleBarTerminal : NSObject
 
++ (void)setUpWindow:(NSWindow *)terminalWindow;
++ (void)hideTitleBar:(NSWindow *)terminalWindow;
++ (void)showTitleBar:(NSWindow *)terminalWindow;
++ (void)setUpPadding:(NSWindow *)terminalWindow;
++ (void)resetPadding:(NSWindow *)terminalWindow;
+
 @end

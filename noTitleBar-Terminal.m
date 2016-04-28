@@ -10,38 +10,132 @@
 #import "JRSwizzle/JRSwizzle.h"
 #import <objc/objc-class.h>
 
+#define HMARGIN 17.0
+#define VMARGIN 20.0
+
 @implementation noTitleBarTerminal
 
 + (void)load {
-    [NSClassFromString(@"TTWindow")
-        jr_swizzleMethod:@selector(initWithContentRect:styleMask:backing:defer:)
-              withMethod:@selector(noTitleBar_initWithContentRect:styleMask:backing:defer:)
-                   error:NULL];
-    [NSClassFromString(@"TTWindow")
-        jr_swizzleMethod:@selector(validateMenuItem:)
-              withMethod:@selector(noTitleBar_validateMenuItem:)
-                   error:NULL];
-    [NSClassFromString(@"TTWindow")
-        jr_swizzleMethod:@selector(canBecomeKeyWindow)
-              withMethod:@selector(noTitleBar_canBecomeKeyWindow)
-                   error:NULL];
-    [NSClassFromString(@"TTWindow")
-        jr_swizzleMethod:@selector(canBecomeMainWindow)
-              withMethod:@selector(noTitleBar_canBecomeMainWindow)
-                   error:NULL];
-    [NSClassFromString(@"TTWindow")
-        jr_swizzleMethod:@selector(performClose:)
-              withMethod:@selector(noTitleBar_performClose:)
-                   error:NULL];
-    [NSClassFromString(@"TTWindow")
-        jr_swizzleMethod:@selector(performMiniaturize:)
-              withMethod:@selector(noTitleBar_performMiniaturize:)
-                   error:NULL];
+    [self sharedInstance];
     [self updateWindows];
 }
 
++ (noTitleBarTerminal *)sharedInstance {
+    static noTitleBarTerminal *sharedInstance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sharedInstance = [[self alloc] init];
+    });
+    return sharedInstance;
+}
+
+- (noTitleBarTerminal *)init {
+    if (self = [super init]) {
+        [NSClassFromString(@"TTWindow")
+            jr_swizzleMethod:@selector(validateMenuItem:)
+                withMethod:@selector(noTitleBar_validateMenuItem:)
+                    error:NULL];
+        [NSClassFromString(@"TTWindow")
+            jr_swizzleMethod:@selector(canBecomeKeyWindow)
+                withMethod:@selector(noTitleBar_canBecomeKeyWindow)
+                    error:NULL];
+        [NSClassFromString(@"TTWindow")
+            jr_swizzleMethod:@selector(canBecomeMainWindow)
+                withMethod:@selector(noTitleBar_canBecomeMainWindow)
+                    error:NULL];
+        [NSClassFromString(@"TTWindow")
+            jr_swizzleMethod:@selector(performClose:)
+                withMethod:@selector(noTitleBar_performClose:)
+                    error:NULL];
+        [NSClassFromString(@"TTWindow")
+            jr_swizzleMethod:@selector(performMiniaturize:)
+                withMethod:@selector(noTitleBar_performMiniaturize:)
+                    error:NULL];
+        [NSClassFromString(@"TTApplication")
+            jr_swizzleMethod:@selector(makeWindowControllerWithProfile:customFont:command:runAsShell:restorable:workingDirectory:)
+                withMethod:@selector(noTitleBar_makeWindowControllerWithProfile:customFont:command:runAsShell:restorable:workingDirectory:)
+                    error:NULL];
+        [NSClassFromString(@"TTSplitView")
+            jr_swizzleMethod:@selector(windowWillChangeFullScreen:)
+                withMethod:@selector(noTitleBar_windowWillChangeFullScreen:)
+                    error:NULL];
+        [NSClassFromString(@"TTSplitView")
+            jr_swizzleMethod:@selector(viewDidMoveToWindow)
+                withMethod:@selector(noTitleBar_viewDidMoveToWindow)
+                    error:NULL];
+        [NSClassFromString(@"TTTabController")
+            jr_swizzleMethod:@selector(setActivePane:)
+                  withMethod:@selector(noTitleBar_setActivePane:)
+                    error:NULL];
+        [NSClassFromString(@"TTTabView")
+            jr_swizzleMethod:@selector(selectTabViewItem:)
+                  withMethod:@selector(noTitleBar_selectTabViewItem:)
+                    error:NULL];
+        [NSClassFromString(@"TTTabViewItem")
+            jr_swizzleMethod:@selector(drawTabViewItem:)
+                  withMethod:@selector(noTitleBar_drawTabViewItem:)
+                    error:NULL];
+    }
+    return self;
+}
+
++ (void)setUpWindow:(NSWindow *)terminalWindow {
+    // This was a nightmare to debug... for some reason changing the
+    // styleMask of a window also changes the firstResponder, losing
+    // keyboard focus. We just save and restore it!
+    NSResponder *savedResponder = terminalWindow.firstResponder;
+    terminalWindow.styleMask = (NSClosableWindowMask |
+            NSMiniaturizableWindowMask |
+            NSResizableWindowMask |
+            NSTitledWindowMask |
+            NSFullSizeContentViewWindowMask);
+    terminalWindow.movableByWindowBackground = YES;
+    [terminalWindow makeFirstResponder:savedResponder];
+}
+
++ (void)hideTitleBar:(NSWindow *)terminalWindow {
+    terminalWindow.titlebarAppearsTransparent = YES;
+    terminalWindow.titleVisibility = NSWindowTitleHidden;
+    terminalWindow.showsToolbarButton = NO;
+    [[terminalWindow standardWindowButton:NSWindowCloseButton] setHidden:YES];
+    [[terminalWindow standardWindowButton:NSWindowMiniaturizeButton] setHidden:YES];
+    [[terminalWindow standardWindowButton:NSWindowZoomButton] setHidden:YES];
+}
+
++ (void)showTitleBar:(NSWindow *)terminalWindow {
+    terminalWindow.titlebarAppearsTransparent = NO;
+    terminalWindow.titleVisibility = NSWindowTitleVisible;
+    terminalWindow.showsToolbarButton = YES;
+    [[terminalWindow standardWindowButton:NSWindowCloseButton] setHidden:NO];
+    [[terminalWindow standardWindowButton:NSWindowMiniaturizeButton] setHidden:NO];
+    [[terminalWindow standardWindowButton:NSWindowZoomButton] setHidden:NO];
+}
+
++ (void)setUpPadding:(NSWindow *)terminalWindow {
+    // Add padding around terminal view
+    NSRect saved = terminalWindow.frame;
+    NSView *contentView = terminalWindow.contentView;
+    NSView *tabView = [contentView subviews][0];
+    NSView *splitView = [tabView subviews][1];
+    NSView *paneView = [splitView subviews][0];
+    id bgColor = [[[paneView view] profile] valueForKey:@"BackgroundColor"];
+    terminalWindow.backgroundColor = bgColor;
+
+    NSRect test = CGRectInset(contentView.superview.bounds, HMARGIN, VMARGIN);
+    [contentView setFrame:NSMakeRect(test.origin.x, test.origin.y - 8, test.size.width, test.size.height + 11)];
+    NSRect test2 = CGRectInset(tabView.superview.bounds, HMARGIN, VMARGIN);
+    [tabView setFrame:NSMakeRect(test2.origin.x - HMARGIN, test2.origin.y - (VMARGIN - 1), test2.size.width, test2.size.height + 8)];
+}
+
++ (void)resetPadding:(NSWindow *)terminalWindow {
+    NSView *contentView = terminalWindow.contentView;
+    NSView *tabView = [contentView subviews][0];
+    [contentView setFrame:contentView.superview.bounds];
+    [tabView setFrame:tabView.superview.bounds];
+}
+
 /*
- * Remove the titlebars of already created windows, since our bundle will
+ * Setup already created windows, since our bundle will
  * probably be loaded after the first window is created (SIMBL limitation)
  */
 + (void)updateWindows {
@@ -51,15 +145,13 @@
     NSArray *windows = [currentApp windows];
     for (id possibleWindow in windows) {
         if ([possibleWindow  isKindOfClass:windowMetaClass]) {
-            // This was a nightmare to debug... for some reason changing the
-            // styleMask of a window also changes the firstResponder, losing
-            // keyboard focus. We just save and restore it!
-            id savedResponder = [possibleWindow firstResponder];
-            [possibleWindow setStyleMask:(NSClosableWindowMask |
-                    NSMiniaturizableWindowMask |
-                    NSResizableWindowMask |
-                    NSTexturedBackgroundWindowMask)];
-            [possibleWindow makeFirstResponder:savedResponder];
+            [noTitleBarTerminal setUpWindow:possibleWindow];
+            [noTitleBarTerminal hideTitleBar:possibleWindow];
+            [noTitleBarTerminal setUpPadding:possibleWindow];
+            NSView *contentView = [possibleWindow contentView];
+            NSView *tabView = [contentView subviews][0];
+            NSView *splitView = [tabView subviews][1];
+            [[NSNotificationCenter defaultCenter] addObserver:splitView selector:@selector(windowWillChangeFullScreen:) name:NSWindowDidExitFullScreenNotification object:[splitView window]];
         }
     }
 }
@@ -104,18 +196,109 @@
     [self miniaturize:self];
 }
 
-- (id)noTitleBar_initWithContentRect:(CGRect)rect
-                           styleMask:(unsigned long long)style
-                             backing:(unsigned long long)backing
-                               defer:(char)defer
+@end
+
+@implementation NSApplication(TTApplication)
+
+- (NSWindowController *)noTitleBar_makeWindowControllerWithProfile:(id)profile
+                                customFont:(id)font
+                                   command:(id)command
+                                runAsShell:(BOOL)a
+                                restorable:(BOOL)b
+                          workingDirectory:(NSString *)dir
 {
-    return [self noTitleBar_initWithContentRect:rect
-                                           styleMask:(NSClosableWindowMask |
-                                                   NSMiniaturizableWindowMask |
-                                                   NSResizableWindowMask |
-                                                   NSTexturedBackgroundWindowMask)
-                                           backing:backing
-                                             defer:defer];
+    NSWindowController *winController = [self noTitleBar_makeWindowControllerWithProfile:profile
+                                                                              customFont:font
+                                                                                 command:command
+                                                                              runAsShell:a
+                                                                              restorable:b
+                                                                        workingDirectory:dir];
+    [noTitleBarTerminal setUpWindow:winController.window];
+    [noTitleBarTerminal hideTitleBar:winController.window];
+    [noTitleBarTerminal setUpPadding:winController.window];
+    return winController;
+}
+
+@end
+
+@implementation NSView(TTSplitView)
+
+- (void)noTitleBar_viewDidMoveToWindow {
+    [self noTitleBar_viewDidMoveToWindow];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(windowWillChangeFullScreen:) name:NSWindowDidExitFullScreenNotification object:[self window]];
+    NSLog(@"QUt");
+}
+
+- (void)noTitleBar_windowWillChangeFullScreen:(NSNotification *)notif {
+    if ([notif.name isEqualToString:NSWindowDidEnterFullScreenNotification]) {
+        [noTitleBarTerminal showTitleBar:notif.object];
+        [noTitleBarTerminal resetPadding:notif.object];
+    }
+    else if ([notif.name isEqualToString:NSWindowDidExitFullScreenNotification]) {
+        [noTitleBarTerminal hideTitleBar:notif.object];
+        [noTitleBarTerminal setUpPadding:notif.object];
+    }
+    [self noTitleBar_windowWillChangeFullScreen:notif];
+}
+
+@end
+
+@implementation NSObject(TTTabController)
+
+- (void)noTitleBar_setActivePane:(id)pane {
+    id bgColor = [[[pane view] profile] valueForKey:@"BackgroundColor"];
+    NSWindow *terminalWindow = [[self windowController] window];
+    terminalWindow.backgroundColor = bgColor;
+    [self noTitleBar_setActivePane:pane];
+    /* NSLog(@"QUA"); */
+    /* [noTitleBarTerminal resetPadding:terminalWindow]; */
+    /* [noTitleBarTerminal setUpPadding:terminalWindow]; */
+    /* NSRect test; */
+    /* test.origin.x = terminalWindow.frame.origin.x; */
+    /* test.origin.y = terminalWindow.frame.origin.y; */
+    /* test.size.width = terminalWindow.frame.size.width + 50; */
+    /* test.size.height = terminalWindow.frame.size.height + 50; */
+    /* [terminalWindow setFrame:test display:YES animate:YES]; */
+}
+
+@end
+
+@implementation NSObject(TTTabView)
+
+- (void)noTitleBar_selectTabViewItem:(id)item {
+    id bgColor = [[[[[item tabController] activePane] view] profile] valueForKey:@"BackgroundColor"];
+    NSWindow *terminalWindow = [[[item tabController] windowController] window];
+    terminalWindow.backgroundColor = bgColor;
+    [self noTitleBar_selectTabViewItem:item];
+}
+
+@end
+
+@implementation NSObject(TTTabViewItem)
+
+- (void)noTitleBar_drawTabViewItem:(NSRect)item {
+    [self noTitleBar_drawTabViewItem:item];
+    if (![self tabState]) {
+        [[NSColor colorWithRed:0.988 green:0.333 blue:0.333 alpha:1] set];
+        NSRect test = [(NSView *)[self tabView] bounds];
+        NSRect rect1;
+        NSRect rect2;
+        rect1.origin.x    = item.origin.x;
+        rect1.origin.y    = item.origin.y - 4;
+        rect1.size.width  = item.size.width;
+        rect1.size.height = item.size.height;
+        rect2.origin.x    = item.origin.x;
+        rect2.origin.y    = item.origin.y + item.size.height - 1;
+        rect2.size.width  = item.size.width;
+        rect2.size.height = 1;
+        NSRectFill(item);
+        [[NSColor colorWithRed:0.722 green:0.157 blue:0.157 alpha:1] set];
+        NSRectFill(rect2);
+        rect2.origin.y    = item.origin.y;
+        [[NSColor colorWithRed:0.957 green:0.443 blue:0.443 alpha:1] set];
+        NSRectFill(rect2);
+        [self _drawLabel:rect1];
+    }
 }
 
 @end
