@@ -10,8 +10,12 @@
 #import "JRSwizzle/JRSwizzle.h"
 #import <objc/objc-class.h>
 
-#define HMARGIN 17.0
-#define VMARGIN 20.0
+#define HMARGIN 16.0
+#define VMARGIN 16.0
+#define VCENTERING VMARGIN/4
+#define ACTIVE_TAB_COLOR                colorWithRed:0.988 green:0.333 blue:0.333 alpha:1
+#define ACTIVE_TAB_COLOR_BORDER_TOP     colorWithRed:0.722 green:0.157 blue:0.157 alpha:1
+#define ACTIVE_TAB_COLOR_BORDER_BOT     colorWithRed:0.957 green:0.443 blue:0.443 alpha:1
 
 @implementation noTitleBarTerminal
 
@@ -122,9 +126,11 @@
     terminalWindow.backgroundColor = bgColor;
 
     NSRect test = CGRectInset(contentView.superview.bounds, HMARGIN, VMARGIN);
-    [contentView setFrame:NSMakeRect(test.origin.x, test.origin.y - 8, test.size.width, test.size.height + 11)];
+    [contentView setFrame:NSMakeRect(test.origin.x, test.origin.y - 1, test.size.width, test.size.height)];
     NSRect test2 = CGRectInset(tabView.superview.bounds, HMARGIN, VMARGIN);
-    [tabView setFrame:NSMakeRect(test2.origin.x - HMARGIN, test2.origin.y - (VMARGIN - 1), test2.size.width, test2.size.height + 8)];
+    [tabView setFrame:NSMakeRect(test2.origin.x - HMARGIN, test2.origin.y - (VMARGIN + VCENTERING - 1), test2.size.width, test2.size.height)];
+    NSRect test3 = [tabView bounds];
+    [tabView setBoundsOrigin:NSMakePoint(test3.origin.x, test3.origin.y - VCENTERING)];
 }
 
 + (void)resetPadding:(NSWindow *)terminalWindow {
@@ -132,6 +138,8 @@
     NSView *tabView = [contentView subviews][0];
     [contentView setFrame:contentView.superview.bounds];
     [tabView setFrame:tabView.superview.bounds];
+    NSRect test3 = [tabView bounds];
+    [tabView setBoundsOrigin:NSMakePoint(test3.origin.x, test3.origin.y + VCENTERING)];
 }
 
 /*
@@ -145,9 +153,9 @@
     NSArray *windows = [currentApp windows];
     for (id possibleWindow in windows) {
         if ([possibleWindow  isKindOfClass:windowMetaClass]) {
+            [noTitleBarTerminal setUpPadding:possibleWindow];
             [noTitleBarTerminal setUpWindow:possibleWindow];
             [noTitleBarTerminal hideTitleBar:possibleWindow];
-            [noTitleBarTerminal setUpPadding:possibleWindow];
             NSView *contentView = [possibleWindow contentView];
             NSView *tabView = [contentView subviews][0];
             NSView *splitView = [tabView subviews][1];
@@ -213,9 +221,9 @@
                                                                               runAsShell:a
                                                                               restorable:b
                                                                         workingDirectory:dir];
+    [noTitleBarTerminal setUpPadding:winController.window];
     [noTitleBarTerminal setUpWindow:winController.window];
     [noTitleBarTerminal hideTitleBar:winController.window];
-    [noTitleBarTerminal setUpPadding:winController.window];
     return winController;
 }
 
@@ -226,17 +234,18 @@
 - (void)noTitleBar_viewDidMoveToWindow {
     [self noTitleBar_viewDidMoveToWindow];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(windowWillChangeFullScreen:) name:NSWindowDidExitFullScreenNotification object:[self window]];
-    /* NSLog(@"QUt"); */
 }
 
 - (void)noTitleBar_windowWillChangeFullScreen:(NSNotification *)notif {
+    NSLog(@"Test %@", notif);
     if ([notif.name isEqualToString:NSWindowDidEnterFullScreenNotification]) {
-        [noTitleBarTerminal showTitleBar:notif.object];
         [noTitleBarTerminal resetPadding:notif.object];
+        [noTitleBarTerminal showTitleBar:notif.object];
     }
     else if ([notif.name isEqualToString:NSWindowDidExitFullScreenNotification]) {
-        [noTitleBarTerminal hideTitleBar:notif.object];
         [noTitleBarTerminal setUpPadding:notif.object];
+        [noTitleBarTerminal setUpWindow:notif.object];
+        [noTitleBarTerminal hideTitleBar:notif.object];
     }
     [self noTitleBar_windowWillChangeFullScreen:notif];
 }
@@ -250,15 +259,6 @@
     NSWindow *terminalWindow = [[self windowController] window];
     terminalWindow.backgroundColor = bgColor;
     [self noTitleBar_setActivePane:pane];
-    /* NSLog(@"QUA"); */
-    /* [noTitleBarTerminal resetPadding:terminalWindow]; */
-    /* [noTitleBarTerminal setUpPadding:terminalWindow]; */
-    /* NSRect test; */
-    /* test.origin.x = terminalWindow.frame.origin.x; */
-    /* test.origin.y = terminalWindow.frame.origin.y; */
-    /* test.size.width = terminalWindow.frame.size.width + 50; */
-    /* test.size.height = terminalWindow.frame.size.height + 50; */
-    /* [terminalWindow setFrame:test display:YES animate:YES]; */
 }
 
 @end
@@ -279,10 +279,9 @@
 - (void)noTitleBar_drawTabViewItem:(NSRect)item {
     [self noTitleBar_drawTabViewItem:item];
     if (![self tabState]) {
-        [[NSColor colorWithRed:0.988 green:0.333 blue:0.333 alpha:1] set];
+        [[NSColor ACTIVE_TAB_COLOR] set];
         NSRect test = [(NSView *)[self tabView] bounds];
-        NSRect rect1;
-        NSRect rect2;
+        NSRect rect1, rect2;
         rect1.origin.x    = item.origin.x;
         rect1.origin.y    = item.origin.y - 4;
         rect1.size.width  = item.size.width;
@@ -292,10 +291,10 @@
         rect2.size.width  = item.size.width;
         rect2.size.height = 1;
         NSRectFill(item);
-        [[NSColor colorWithRed:0.722 green:0.157 blue:0.157 alpha:1] set];
+        [[NSColor ACTIVE_TAB_COLOR_BORDER_TOP] set];
         NSRectFill(rect2);
         rect2.origin.y    = item.origin.y;
-        [[NSColor colorWithRed:0.957 green:0.443 blue:0.443 alpha:1] set];
+        [[NSColor ACTIVE_TAB_COLOR_BORDER_BOT] set];
         NSRectFill(rect2);
         [self _drawLabel:rect1];
     }
