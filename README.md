@@ -3,6 +3,9 @@
 
 Simple SIMBL plugin that removes the Titlebar (and Toolbar) from Terminal.app.
 
+
+![Screenshot 1](/screen1.png?raw=true)
+
 Why and how
 -----------
 
@@ -13,6 +16,10 @@ the title bar, and since I thought it was pretty cool I decided to add the same
 option in Terminal.app
 The basic change is removing the NSTitledWindowMask during the window creation,
 the other hooked functions are needed to keep all Terminal features working.
+Now it also supports padding and active tab color personalization!
+
+
+![Screenshot 2](/screen2.png?raw=true)
 
 Download
 --------
