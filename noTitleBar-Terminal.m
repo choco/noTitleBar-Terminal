@@ -226,7 +226,7 @@
 - (void)noTitleBar_viewDidMoveToWindow {
     [self noTitleBar_viewDidMoveToWindow];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(windowWillChangeFullScreen:) name:NSWindowDidExitFullScreenNotification object:[self window]];
-    NSLog(@"QUt");
+    /* NSLog(@"QUt"); */
 }
 
 - (void)noTitleBar_windowWillChangeFullScreen:(NSNotification *)notif {
