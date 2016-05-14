@@ -17,6 +17,8 @@ option in Terminal.app
 The basic change is removing the NSTitledWindowMask during the window creation,
 the other hooked functions are needed to keep all Terminal features working.
 Now it also supports padding and active tab color personalization!
+The background color of the padding area is taken from the current tab
+background color, to have the best integration possible.
 
 
 ![Screenshot 2](/screen2.png?raw=true)
