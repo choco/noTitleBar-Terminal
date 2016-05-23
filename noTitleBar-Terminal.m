@@ -67,22 +67,6 @@
             jr_swizzleMethod:@selector(viewDidMoveToWindow)
                 withMethod:@selector(noTitleBar_viewDidMoveToWindow)
                     error:NULL];
-        [NSClassFromString(@"TTWindowController")
-            jr_swizzleMethod:@selector(tabView:didSelectTabViewItem:)
-                withMethod:@selector(noTitleBar_tabView:didSelectTabViewItem:)
-                    error:NULL];
-        [NSClassFromString(@"TTWindowController")
-            jr_swizzleMethod:@selector(tabView:didCloseTabViewItem:)
-                withMethod:@selector(noTitleBar_tabView:didCloseTabViewItem:)
-                    error:NULL];
-        [NSClassFromString(@"TTWindowController")
-            jr_swizzleMethod:@selector(makeTabWithProfile:customFont:command:runAsShell:restorable:workingDirectory:sessionClass:restoreSession:)
-                withMethod:@selector(noTitleBar_makeTabWithProfile:customFont:command:runAsShell:restorable:workingDirectory:sessionClass:restoreSession:)
-                    error:NULL];
-        [NSClassFromString(@"TTTabViewItem")
-            jr_swizzleMethod:@selector(drawTabViewItem:)
-                  withMethod:@selector(noTitleBar_drawTabViewItem:)
-                    error:NULL];
     }
     return self;
 }
@@ -119,49 +103,25 @@
     [[terminalWindow standardWindowButton:NSWindowZoomButton] setHidden:NO];
 }
 
-+ (void)setUpPadding:(NSWindow *)terminalWindow {
-    // Add padding around terminal view
++ (void)removeTopLine:(NSWindow *)terminalWindow {
     NSView *contentView = terminalWindow.contentView;
     NSView *tabView = [contentView subviews][0];
     NSView *splitView = [tabView subviews][1];
     TTPane *paneView = [splitView subviews][0];
     id bgColor = [[[paneView view] profile] valueForKey:@"BackgroundColor"];
-    terminalWindow.backgroundColor = bgColor;
-
-    NSRect contentViewFrame = CGRectInset(contentView.superview.bounds, HMARGIN, VMARGIN);
-    [contentView setFrame:NSMakeRect(contentViewFrame.origin.x,
-            contentViewFrame.origin.y - 1, contentViewFrame.size.width,
-            contentViewFrame.size.height)];
-    NSRect tabViewFrame = CGRectInset(tabView.superview.bounds, HMARGIN, VMARGIN);
-    [tabView setFrame:NSMakeRect(tabViewFrame.origin.x - HMARGIN,
-            tabViewFrame.origin.y - (VMARGIN + VCENTERING - 1),
-            tabViewFrame.size.width, tabViewFrame.size.height)];
-    NSRect tabViewBounds = [tabView bounds];
-    [tabView setBoundsOrigin:NSMakePoint(tabViewBounds.origin.x, tabViewBounds.origin.y - VCENTERING)];
+    [contentView setFrameOrigin:NSMakePoint(contentView.frame.origin.x,
+            contentView.frame.origin.y + 1)];
+    NSView *randomView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, terminalWindow.frame.size.width, 1)];
+    [randomView setAutoresizingMask:NSViewWidthSizable];
+    [randomView setWantsLayer:YES];
+    randomView.layer.backgroundColor = [bgColor CGColor];
+    [contentView.superview addSubview:randomView];
 }
 
-+ (void)resetPadding:(NSWindow *)terminalWindow {
++ (void)resetTopLine:(NSWindow *)terminalWindow {
     NSView *contentView = terminalWindow.contentView;
-    NSView *tabView = [contentView subviews][0];
-    [contentView setFrame:contentView.superview.bounds];
-    [tabView setFrame:tabView.superview.bounds];
-    NSRect test3 = [tabView bounds];
-    [tabView setBoundsOrigin:NSMakePoint(test3.origin.x, test3.origin.y + VCENTERING)];
-}
-
-+ (void)restoreSize:(NSWindow *)terminalWindow fromFullScreen:(BOOL)fullscreen{
-    int scalingFactor = 2;
-    BOOL animate = NO;
-    if (fullscreen) {
-        scalingFactor = 4;
-        animate = YES;
-    }
-
-    NSRect oldFrame = terminalWindow.frame;
-    oldFrame.size.width += HMARGIN * scalingFactor;
-    oldFrame.size.height += VMARGIN * scalingFactor;
-    oldFrame.origin.y -= VMARGIN * scalingFactor;
-    [terminalWindow setFrame:oldFrame display:YES animate:animate];
+    [contentView setFrameOrigin:NSMakePoint(contentView.frame.origin.x,
+            contentView.frame.origin.y - 1)];
 }
 
 /*
@@ -175,7 +135,7 @@
     NSArray *windows = [currentApp windows];
     for (id possibleWindow in windows) {
         if ([possibleWindow  isKindOfClass:windowMetaClass]) {
-            [noTitleBarTerminal setUpPadding:possibleWindow];
+            [noTitleBarTerminal removeTopLine:possibleWindow];
             [noTitleBarTerminal setUpWindow:possibleWindow];
             [noTitleBarTerminal hideTitleBar:possibleWindow];
             NSView *contentView = [possibleWindow contentView];
@@ -231,7 +191,7 @@
 @implementation NSApplication(TTApplication)
 
 /*
- * Setup padding and window customization for newly created windows
+ * Setup window customization for newly created windows
  */
 - (NSWindowController *)noTitleBar_makeWindowControllerWithProfile:(id)profile
                                 customFont:(id)font
@@ -246,7 +206,7 @@
                                                                               runAsShell:a
                                                                               restorable:b
                                                                         workingDirectory:dir];
-    [noTitleBarTerminal setUpPadding:winController.window];
+    [noTitleBarTerminal removeTopLine:winController.window];
     [noTitleBarTerminal setUpWindow:winController.window];
     [noTitleBarTerminal hideTitleBar:winController.window];
     return winController;
@@ -266,113 +226,19 @@
 }
 
 /*
- * Reset padding and window customization when going fullscreen,
- * restore padding, window customization and size when going back to standard window
+ * Reset top line and window customization when going fullscreen,
+ * remove top line, window customization and size when going back to standard window
  */
 - (void)noTitleBar_windowWillChangeFullScreen:(NSNotification *)notif {
     [self noTitleBar_windowWillChangeFullScreen:notif];
     if ([notif.name isEqualToString:NSWindowDidEnterFullScreenNotification]) {
-        [noTitleBarTerminal resetPadding:notif.object];
+        [noTitleBarTerminal resetTopLine:notif.object];
         [noTitleBarTerminal showTitleBar:notif.object];
     }
     else if ([notif.name isEqualToString:NSWindowDidExitFullScreenNotification]) {
-        [noTitleBarTerminal setUpPadding:notif.object];
+        [noTitleBarTerminal removeTopLine:notif.object];
         [noTitleBarTerminal setUpWindow:notif.object];
         [noTitleBarTerminal hideTitleBar:notif.object];
-        [noTitleBarTerminal restoreSize:notif.object fromFullScreen:YES];
-    }
-}
-
-@end
-
-@implementation NSWindowController(TTWindowController)
-
-/*
- * Update the window color of the newly selected tabView to match with that view
- * background
- */
-- (void)noTitleBar_tabView:(id)tabView didSelectTabViewItem:(TTTabViewItem *)tabViewItem {
-    [self noTitleBar_tabView:tabView didSelectTabViewItem:tabViewItem];
-    if(tabView) {
-        id bgColor = [[[[[tabViewItem tabController] activePane] view] profile] valueForKey:@"BackgroundColor"];
-        NSWindow *terminalWindow = [[[tabViewItem tabController] windowController] window];
-        terminalWindow.backgroundColor = bgColor;
-    }
-}
-
-/*
- * When tab bar appears or disappears we want to trigger a frame recalculation
- * to keep window the same size after all the padding changes. We creating a new
- * tab we also want to update the background color of the underlying window, since
- * didSelectTabViewItem: isn't triggered in that case
- */
-- (void)noTitleBar_tabView:(id)tabView didCloseTabViewItem:(TTTabViewItem *)tabViewItem {
-    [self noTitleBar_tabView:tabView didCloseTabViewItem:tabViewItem];
-    if ((int)[tabView numberOfTabViewItems] == 1) {
-        [noTitleBarTerminal restoreSize:[self window] fromFullScreen:NO];
-    }
-}
-
-- (id)noTitleBar_makeTabWithProfile:(id) profile
-                           customFont:(id) font
-                              command:(id) command
-                           runAsShell:(BOOL) runAsShell
-                           restorable:(BOOL) restorable
-                     workingDirectory:(id) workingDirectory
-                         sessionClass:(id) sessionClass
-                       restoreSession:(id) restoreSession
-{
-    id tab = [self noTitleBar_makeTabWithProfile:profile
-                                      customFont:font
-                                         command:command
-                                      runAsShell:runAsShell
-                                      restorable:restorable
-                                workingDirectory:workingDirectory
-                                    sessionClass:sessionClass
-                                  restoreSession:restoreSession];
-    id bgColor = [profile valueForKey:@"BackgroundColor"];
-    NSWindow *terminalWindow = [self window];
-    terminalWindow.backgroundColor = bgColor;
-    [noTitleBarTerminal restoreSize:terminalWindow fromFullScreen:NO];
-    return tab;
-}
-
-@end
-
-@implementation NSTabViewItem(TTTabViewItem)
-
-/*
- * Active tabViewItem has a transparent background and so uses
- * window default bg. Since we change the window color to support
- * padding, the tabView item would look bad, so we redraw it. This
- * isn't a complete reversing of the function, some functionalities
- * are missing like close button or activity indicator
- */
-- (void)noTitleBar_drawTabViewItem:(NSRect)item {
-    [self noTitleBar_drawTabViewItem:item];
-    if (![self tabState]) {
-        // fill bg
-        [[NSColor ACTIVE_TAB_COLOR] set];
-        NSRectFill(item);
-        // topBorder rect bg
-        NSRect border;
-        border.origin.x    = item.origin.x;
-        border.origin.y    = item.origin.y + item.size.height - 1;
-        border.size.width  = item.size.width;
-        border.size.height = 1;
-        [[NSColor ACTIVE_TAB_COLOR_BORDER_TOP] set];
-        NSRectFill(border);
-        // botBorder rect bg
-        border.origin.y    = item.origin.y;
-        [[NSColor ACTIVE_TAB_COLOR_BORDER_BOT] set];
-        NSRectFill(border);
-        // label rect
-        NSRect label;
-        label.origin.x    = item.origin.x;
-        label.origin.y    = item.origin.y - 4;
-        label.size.width  = item.size.width;
-        label.size.height = item.size.height;
-        objc_msgSend(self, @selector(_drawLabel:), label);
     }
 }
 

@@ -13,9 +13,8 @@
 + (void)setUpWindow:(NSWindow *)terminalWindow;
 + (void)hideTitleBar:(NSWindow *)terminalWindow;
 + (void)showTitleBar:(NSWindow *)terminalWindow;
-+ (void)setUpPadding:(NSWindow *)terminalWindow;
-+ (void)resetPadding:(NSWindow *)terminalWindow;
-+ (void)restoreSize:(NSWindow *)terminalWindow fromFullScreen:(BOOL)fullscreen;
++ (void)removeTopLine:(NSWindow *)terminalWindow;
++ (void)resetTopLine:(NSWindow *)terminalWindow;
 
 @end
 
