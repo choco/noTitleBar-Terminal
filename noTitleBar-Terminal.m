@@ -59,6 +59,22 @@
             jr_swizzleMethod:@selector(makeWindowControllerWithProfile:customFont:command:runAsShell:restorable:workingDirectory:)
                 withMethod:@selector(noTitleBar_makeWindowControllerWithProfile:customFont:command:runAsShell:restorable:workingDirectory:)
                     error:NULL];
+        [NSClassFromString(@"TTTabView")
+            jr_swizzleMethod:@selector(contentRect)
+                withMethod:@selector(noTitleBar_contentRect)
+                    error:NULL];
+        [NSClassFromString(@"TTTabView")
+            jr_swizzleMethod:@selector(contentSizeForFrameSize:)
+                withMethod:@selector(noTitleBar_contentSizeForFrameSize:)
+                    error:NULL];
+        [NSClassFromString(@"TTTabView")
+            jr_swizzleMethod:@selector(frameSizeForContentSize:)
+                withMethod:@selector(noTitleBar_frameSizeForContentSize:)
+                    error:NULL];
+        [NSClassFromString(@"TTSplitView")
+            jr_swizzleMethod:@selector(contentSizeForLogicalContentSize:)
+                withMethod:@selector(noTitleBar_contentSizeForLogicalContentSize:)
+                    error:NULL];
         [NSClassFromString(@"TTSplitView")
             jr_swizzleMethod:@selector(windowWillChangeFullScreen:)
                 withMethod:@selector(noTitleBar_windowWillChangeFullScreen:)
@@ -66,6 +82,10 @@
         [NSClassFromString(@"TTSplitView")
             jr_swizzleMethod:@selector(viewDidMoveToWindow)
                 withMethod:@selector(noTitleBar_viewDidMoveToWindow)
+                    error:NULL];
+        [NSClassFromString(@"TTWindowController")
+            jr_swizzleMethod:@selector(contentSize)
+                withMethod:@selector(noTitleBar_contentSize)
                     error:NULL];
         [NSClassFromString(@"TTWindowController")
             jr_swizzleMethod:@selector(tabView:didSelectTabViewItem:)
@@ -91,12 +111,40 @@
     // This was a nightmare to debug... for some reason changing the
     // styleMask of a window also changes the firstResponder, losing
     // keyboard focus. We just save and restore it!
+    //     // Add padding around terminal view
+    NSView *contentView = terminalWindow.contentView;
+    NSView *tabView = [contentView subviews][0];
+    NSView *splitView = [tabView subviews][1];
+    TTPane *paneView = [splitView subviews][0];
+    id bgColor = [[[paneView view] profile] valueForKey:@"BackgroundColor"];
+
+    NSRect framewanted;
+    framewanted.origin.x = 0;
+    framewanted.origin.y = terminalWindow.frame.size.height - 22;
+    framewanted.size.width = terminalWindow.frame.size.width;
+    framewanted.size.height = 22;
+    NSView *testview = [[NSView alloc] initWithFrame:framewanted];
+    [testview setWantsLayer:YES];
+    [testview setAutoresizingMask:NSViewMinYMargin | NSViewMaxXMargin | NSViewWidthSizable | NSViewMinXMargin];
+    [testview.layer setBackgroundColor:[bgColor CGColor]];
+    testview.layer.cornerRadius = 5.0;
+    [terminalWindow.contentView.superview addSubview:testview positioned:NSWindowAbove relativeTo:nil];
+    framewanted.origin.x = 0;
+    framewanted.origin.y = terminalWindow.frame.size.height - 22;
+    framewanted.size.width = terminalWindow.frame.size.width;
+    framewanted.size.height = 5;
+    NSView *testview2 = [[NSView alloc] initWithFrame:framewanted];
+    [testview2 setWantsLayer:YES];
+    [testview2 setAutoresizingMask:NSViewMinYMargin | NSViewMaxXMargin | NSViewWidthSizable | NSViewMinXMargin];
+    [testview2.layer setBackgroundColor:[bgColor CGColor]];
+    [terminalWindow.contentView.superview addSubview:testview2 positioned:NSWindowAbove relativeTo:nil];
+
     NSResponder *savedResponder = terminalWindow.firstResponder;
     terminalWindow.styleMask = (NSClosableWindowMask |
             NSMiniaturizableWindowMask |
             NSResizableWindowMask |
-            NSTitledWindowMask |
-            NSFullSizeContentViewWindowMask);
+            NSTitledWindowMask);
+
     terminalWindow.movableByWindowBackground = YES;
     [terminalWindow makeFirstResponder:savedResponder];
 }
@@ -128,14 +176,15 @@
     id bgColor = [[[paneView view] profile] valueForKey:@"BackgroundColor"];
     terminalWindow.backgroundColor = bgColor;
 
+
     NSRect contentViewFrame = CGRectInset(contentView.superview.bounds, HMARGIN, VMARGIN);
     [contentView setFrame:NSMakeRect(contentViewFrame.origin.x,
             contentViewFrame.origin.y - 1, contentViewFrame.size.width,
-            contentViewFrame.size.height)];
+            contentViewFrame.size.height + 20)];
     NSRect tabViewFrame = CGRectInset(tabView.superview.bounds, HMARGIN, VMARGIN);
     [tabView setFrame:NSMakeRect(tabViewFrame.origin.x - HMARGIN,
             tabViewFrame.origin.y - (VMARGIN + VCENTERING - 1),
-            tabViewFrame.size.width, tabViewFrame.size.height)];
+            tabViewFrame.size.width, tabViewFrame.size.height + 20)];
     NSRect tabViewBounds = [tabView bounds];
     [tabView setBoundsOrigin:NSMakePoint(tabViewBounds.origin.x, tabViewBounds.origin.y - VCENTERING)];
 }
@@ -151,7 +200,7 @@
 
 + (void)restoreSize:(NSWindow *)terminalWindow fromFullScreen:(BOOL)fullscreen{
     int scalingFactor = 2;
-    BOOL animate = NO;
+    BOOL animate = YES;
     if (fullscreen) {
         scalingFactor = 4;
         animate = YES;
@@ -178,6 +227,7 @@
             [noTitleBarTerminal setUpPadding:possibleWindow];
             [noTitleBarTerminal setUpWindow:possibleWindow];
             [noTitleBarTerminal hideTitleBar:possibleWindow];
+            [noTitleBarTerminal restoreSize:possibleWindow fromFullScreen:NO];
             NSView *contentView = [possibleWindow contentView];
             NSView *tabView = [contentView subviews][0];
             NSView *splitView = [tabView subviews][1];
@@ -249,12 +299,19 @@
     [noTitleBarTerminal setUpPadding:winController.window];
     [noTitleBarTerminal setUpWindow:winController.window];
     [noTitleBarTerminal hideTitleBar:winController.window];
+    [noTitleBarTerminal restoreSize:winController.window fromFullScreen:NO];
     return winController;
 }
 
 @end
 
 @implementation NSView(TTSplitView)
+
+- (struct CGSize)noTitleBar_contentSizeForLogicalContentSize:(NSSize)size {
+    NSSize test = [self noTitleBar_contentSizeForLogicalContentSize:size];
+    /* test.height -= 40; */
+    return test;
+}
 
 /*
  * Terminal window don't register for NSWindowDidExitFullScreenNotification so we
@@ -285,7 +342,24 @@
 
 @end
 
+@implementation NSView(TTTabView)
+- (struct CGRect)noTitleBar_contentRect {
+    NSRect rect = [self noTitleBar_contentRect];
+    /* rect.origin.y -= 20; */
+    /* rect.size.height -= 120; */
+    return rect;
+}
+@end
+
 @implementation NSWindowController(TTWindowController)
+
+- (struct CGSize)noTitleBar_contentSize {
+    NSSize test = [self noTitleBar_contentSize];
+    /* test.height += 50; */
+    /* NSLog(@"PROVIAO dhdh"); */
+    return test;
+}
+
 
 /*
  * Update the window color of the newly selected tabView to match with that view
@@ -332,8 +406,16 @@
                                   restoreSession:restoreSession];
     id bgColor = [profile valueForKey:@"BackgroundColor"];
     NSWindow *terminalWindow = [self window];
+    NSView *contentView = terminalWindow.contentView;
+    NSView *tabView = [contentView subviews][0];
     terminalWindow.backgroundColor = bgColor;
-    [noTitleBarTerminal restoreSize:terminalWindow fromFullScreen:NO];
+    if(((int)[tabView numberOfTabViewItems]) == 2)
+        [noTitleBarTerminal restoreSize:terminalWindow fromFullScreen:NO];
+    else {
+        NSRect rect = terminalWindow.frame;
+        rect.size.width += 1;
+        [terminalWindow setFrame:rect display:YES animate:YES];
+    }
     return tab;
 }
 
