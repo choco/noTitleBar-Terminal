@@ -79,8 +79,7 @@
     terminalWindow.styleMask = (NSClosableWindowMask |
             NSMiniaturizableWindowMask |
             NSResizableWindowMask |
-            NSTitledWindowMask |
-            NSFullSizeContentViewWindowMask);
+            NSBorderlessWindowMask);
     terminalWindow.movableByWindowBackground = YES;
     [terminalWindow makeFirstResponder:savedResponder];
 }
@@ -108,20 +107,22 @@
     NSView *tabView = [contentView subviews][0];
     NSView *splitView = [tabView subviews][1];
     TTPane *paneView = [splitView subviews][0];
-    id bgColor = [[[paneView view] profile] valueForKey:@"BackgroundColor"];
-    [contentView setFrameOrigin:NSMakePoint(contentView.frame.origin.x,
-            contentView.frame.origin.y + 1)];
-    NSView *randomView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, terminalWindow.frame.size.width, 1)];
-    [randomView setAutoresizingMask:NSViewWidthSizable];
-    [randomView setWantsLayer:YES];
-    randomView.layer.backgroundColor = [bgColor CGColor];
-    [contentView.superview addSubview:randomView];
+    if (contentView.superview.subviews.count < 3) {
+        id bgColor = [[[paneView view] profile] valueForKey:@"BackgroundColor"];
+        NSRect testframe;
+        testframe.origin.x = 0;
+        testframe.origin.y = terminalWindow.frame.size.height - 1;
+        testframe.size.width = terminalWindow.frame.size.width;
+        testframe.size.height = 1;
+        NSView *randomView = [[NSView alloc] initWithFrame:testframe];
+        [randomView setAutoresizingMask:NSViewMinYMargin | NSViewMaxXMargin | NSViewWidthSizable | NSViewMinXMargin];
+        [randomView setWantsLayer:YES];
+        [randomView.layer setBackgroundColor:[bgColor CGColor]];
+        [contentView.superview addSubview:randomView positioned:NSWindowAbove relativeTo:nil];
+    }
 }
 
 + (void)resetTopLine:(NSWindow *)terminalWindow {
-    NSView *contentView = terminalWindow.contentView;
-    [contentView setFrameOrigin:NSMakePoint(contentView.frame.origin.x,
-            contentView.frame.origin.y - 1)];
 }
 
 /*
@@ -135,8 +136,8 @@
     NSArray *windows = [currentApp windows];
     for (id possibleWindow in windows) {
         if ([possibleWindow  isKindOfClass:windowMetaClass]) {
-            [noTitleBarTerminal removeTopLine:possibleWindow];
             [noTitleBarTerminal setUpWindow:possibleWindow];
+            [noTitleBarTerminal removeTopLine:possibleWindow];
             [noTitleBarTerminal hideTitleBar:possibleWindow];
             NSView *contentView = [possibleWindow contentView];
             NSView *tabView = [contentView subviews][0];
@@ -206,8 +207,8 @@
                                                                               runAsShell:a
                                                                               restorable:b
                                                                         workingDirectory:dir];
-    [noTitleBarTerminal removeTopLine:winController.window];
     [noTitleBarTerminal setUpWindow:winController.window];
+    [noTitleBarTerminal removeTopLine:winController.window];
     [noTitleBarTerminal hideTitleBar:winController.window];
     return winController;
 }
@@ -236,8 +237,8 @@
         [noTitleBarTerminal showTitleBar:notif.object];
     }
     else if ([notif.name isEqualToString:NSWindowDidExitFullScreenNotification]) {
-        [noTitleBarTerminal removeTopLine:notif.object];
         [noTitleBarTerminal setUpWindow:notif.object];
+        [noTitleBarTerminal removeTopLine:notif.object];
         [noTitleBarTerminal hideTitleBar:notif.object];
     }
 }
