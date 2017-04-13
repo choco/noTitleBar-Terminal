@@ -1,6 +1,10 @@
 「 noTitleBar Terminal.app 」
 =================================
 
+
+THIS PROJECT IS DEAD, ITERM2 NOW RENDERS TEXT SAME WAY AS TERMINAL.APP
+==================================================================
+
 Simple SIMBL plugin that removes the Titlebar (and Toolbar) from Terminal.app.
 
 
